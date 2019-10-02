@@ -1,5 +1,7 @@
 module BadgeRewarder
   YEARS = { 1 => "one", 2 => "two", 3 => "three", 4 => "four", 5 => "five", 6 => "six", 7 => "seven", 8 => "eight", 9 => "nine", 10 => "ten" }.freeze
+  AWARD_MEDIUM_BADGE_AT = 32
+  AWARD_LARGE_BADGE_AT = 64
 
   def self.award_yearly_club_badges
     (1..3).each do |i|
@@ -60,14 +62,52 @@ module BadgeRewarder
     end
   end
 
-  def self.award_contributor_badges_from_github(since = 1.day.ago, message_markdown = "Thank you so much for your contributions!")
+  def self.award_contributor_badges_from_github(_since = 1.day.ago, message_markdown = "Thank you so much for your contributions!")
     client = Octokit::Client.new
-    badge = Badge.find_by(slug: "dev-contributor")
+
+    contributor_uids = {} # uid: num_prs
     ["thepracticaldev/dev.to", "thepracticaldev/DEV-ios", "thepracticaldev/DEV-Android"].each do |repo|
-      commits = client.commits repo, since: since.iso8601
-      authors_uids = commits.map { |commit| commit.author.id }
-      Identity.where(provider: "github", uid: authors_uids).find_each do |i|
-        BadgeAchievement.where(user_id: i.user_id, badge_id: badge.id).first_or_create(
+      pull_requests = client.pull_requests repo, state: "closed"
+      pull_requests.each do |pull_request|
+        is_merged = client.pull_merged? repo, pull_request.number
+        next unless is_merged
+
+        commits = client.pull_request_commits repo, pull_request.number
+
+        # since we are awarding based on number of PRs and not commits, get a unique set of authors first...
+        pr_author_uids = Set[]
+        commits.each do |commit|
+          pr_author_uids.add(commit.author.id)
+        end
+
+        # ...and give each author a +1
+        pr_author_uids.each do |author_uid|
+          if contributor_uids[author_uid]
+            contributor_uids[author_uid] += 1
+          else
+            contributor_uids[author_uid] = 1
+          end
+        end
+      end
+    end
+
+    badge_small = Badge.find_by(slug: "dev-contributor")
+    badge_medium = Badge.find_by(slug: "dev-contributor-medium")
+    badge_large = Badge.find_by(slug: "dev-contributor-large")
+
+    Identity.where(provider: "github", uid: contributor_uids.keys).find_each do |i|
+      BadgeAchievement.where(user_id: i.user_id, badge_id: badge_small.id).first_or_create(
+        rewarding_context_message_markdown: message_markdown,
+      )
+
+      if contributor_uids[i.uid] >= AWARD_MEDIUM_BADGE_AT && badge_medium
+        BadgeAchievement.where(user_id: i.user_id, badge_id: badge_medium.id).first_or_create(
+          rewarding_context_message_markdown: message_markdown,
+        )
+      end
+
+      if contributor_uids[i.uid] >= AWARD_LARGE_BADGE_AT && badge_large
+        BadgeAchievement.where(user_id: i.user_id, badge_id: badge_large.id).first_or_create(
           rewarding_context_message_markdown: message_markdown,
         )
       end

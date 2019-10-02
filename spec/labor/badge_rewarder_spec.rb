@@ -101,21 +101,57 @@ RSpec.describe BadgeRewarder do
 
   describe "::award_contributor_badges_from_github" do
     let(:my_ocktokit_client) { instance_double(Octokit::Client) }
-    let(:user) { create(:user) }
+    let(:user_small) { create(:user) }
+    let(:user_medium) { create(:user) }
+    let(:user_large) { create(:user) }
 
-    let(:stubbed_github_commit) do
-      [OpenStruct.new(author: OpenStruct.new(id: user.identities.first.uid))]
+    let(:stubbed_github_pull_requests_dev_to) do
+      [OpenStruct.new(number: 1)] + Array.new(11, OpenStruct.new(number: 2)) + Array.new(22, OpenStruct.new(number: 3))
+    end
+    let(:stubbed_github_pull_requests_dev_ios) do
+      Array.new(11, OpenStruct.new(number: 2)) + Array.new(22, OpenStruct.new(number: 3))
+    end
+    let(:stubbed_github_pull_requests_dev_android) do
+      Array.new(11, OpenStruct.new(number: 2)) + Array.new(22, OpenStruct.new(number: 3))
+    end
+
+    let(:stubbed_github_commits_one) do
+      [OpenStruct.new(author: OpenStruct.new(id: user_small.identities.first.uid))]
+    end
+    let(:stubbed_github_commits_two) do
+      [OpenStruct.new(author: OpenStruct.new(id: user_medium.identities.first.uid))]
+    end
+    let(:stubbed_github_commits_three) do
+      [OpenStruct.new(author: OpenStruct.new(id: user_large.identities.first.uid))]
     end
 
     before do
       allow(Octokit::Client).to receive(:new).and_return(my_ocktokit_client)
-      allow(my_ocktokit_client).to receive(:commits).and_return(stubbed_github_commit)
+      allow(my_ocktokit_client).to receive(:pull_requests).with("thepracticaldev/dev.to", state: "closed").and_return(stubbed_github_pull_requests_dev_to)
+      allow(my_ocktokit_client).to receive(:pull_requests).with("thepracticaldev/DEV-ios", state: "closed").and_return(stubbed_github_pull_requests_dev_ios)
+      allow(my_ocktokit_client).to receive(:pull_requests).with("thepracticaldev/DEV-Android", state: "closed").and_return(stubbed_github_pull_requests_dev_android)
+      allow(my_ocktokit_client).to receive(:pull_merged?).and_return(true)
+      allow(my_ocktokit_client).to receive(:pull_request_commits).with(anything, 1).and_return(stubbed_github_commits_one)
+      allow(my_ocktokit_client).to receive(:pull_request_commits).with(anything, 2).and_return(stubbed_github_commits_two)
+      allow(my_ocktokit_client).to receive(:pull_request_commits).with(anything, 3).and_return(stubbed_github_commits_three)
+
       create(:badge, title: "DEV Contributor")
+      create(:badge, title: "DEV Contributor medium")
+      create(:badge, title: "DEV Contributor large")
+
+      described_class.award_contributor_badges_from_github
     end
 
-    it "award contributor badge" do
-      described_class.award_contributor_badges_from_github
-      expect(user.badge_achievements.size).to eq(1)
+    it "award contributor badge at 1 PR" do
+      expect(user_small.badge_achievements.size).to eq(1)
+    end
+
+    it "awards contibutor badge at 32 PRs" do
+      expect(user_medium.badge_achievements.size).to eq(2)
+    end
+
+    it "awards contibutor badge at 64 PRs" do
+      expect(user_large.badge_achievements.size).to eq(3)
     end
   end
 
