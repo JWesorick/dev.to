@@ -9,6 +9,14 @@
      data-articles-since="<%= Timeframer.new(params[:timeframe]).datetime.to_i %>">
   <%= render "articles/search/sidebar" %>
   <div class="articles-list" id="articles-list">
+    <div class="notifications-mobile-filters">
+      <a class="query-filter-button" data-filter="">ALL</a>
+      <a class="query-filter-button" data-filter="class_name:Article">POSTS</a>
+      <a class="query-filter-button" data-filter="class_name:PodcastEpisode">PODCASTS</a>
+      <a class="query-filter-button" data-filter="class_name:User">PEOPLE</a>
+      <a class="query-filter-button my-posts-query-button" data-filter="MY_POSTS">ONLY MY POSTS</a>
+    </div>
+
     <div class="substories" id="substories">
       <div class="query-results-nothing">
         <div class="query-results-loader"></div>
